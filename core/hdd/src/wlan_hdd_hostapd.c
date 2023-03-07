@@ -1019,7 +1019,7 @@ QDF_STATUS hdd_chan_change_notify(struct hdd_adapter *adapter,
 	hdd_debug("notify: chan:%d width:%d freq1:%d freq2:%d",
 		  chandef.chan->center_freq, chandef.width,
 		  chandef.center_freq1, chandef.center_freq2);
-	wlan_cfg80211_ch_switch_notify(dev, &chandef, 0);
+	cfg80211_ch_switch_notify(dev, &chandef);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -6940,12 +6940,15 @@ exit:
 	return 0;
 }
 
-#ifdef CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT
-int wlan_hdd_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
-			      unsigned int link_id)
-#else
-int wlan_hdd_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
-#endif
+/**
+ * wlan_hdd_cfg80211_stop_ap() - stop sap
+ * @wiphy: Pointer to wiphy
+ * @dev: Pointer to netdev
+ *
+ * Return: zero for success non-zero for failure
+ */
+int wlan_hdd_cfg80211_stop_ap(struct wiphy *wiphy,
+				struct net_device *dev)
 {
 	int errno;
 	struct osif_vdev_sync *vdev_sync;
@@ -7357,32 +7360,6 @@ wlan_hdd_update_twt_responder(struct hdd_context *hdd_ctx,
 {}
 #endif
 
-#ifdef CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT
-static inline uint32_t
-wlan_util_get_centre_freq(struct wireless_dev *wdev, unsigned int link_id)
-{
-	return wdev->links[link_id].ap.chandef.chan->center_freq;
-}
-
-static inline struct cfg80211_chan_def
-wlan_util_get_chan_def(struct wireless_dev *wdev, unsigned int link_id)
-{
-	return wdev->links[link_id].ap.chandef;
-}
-#else
-static inline struct cfg80211_chan_def
-wlan_util_get_chan_def(struct wireless_dev *wdev, unsigned int link_id)
-{
-	return wdev->chandef;
-}
-
-static inline uint32_t
-wlan_util_get_centre_freq(struct wireless_dev *wdev, unsigned int link_id)
-{
-	return wdev->chandef.chan->center_freq;
-}
-#endif
-
 #if defined(WLAN_FEATURE_SR) && \
 	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 /**
@@ -7752,9 +7729,9 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 			goto err_start_bss;
 		}
 
-		if (wlan_util_get_centre_freq(wdev, 0) !=
+		if (wdev->chandef.chan->center_freq !=
 				params->chandef.chan->center_freq)
-			params->chandef = wlan_util_get_chan_def(wdev, 0);
+			params->chandef = wdev->chandef;
 		/*
 		 * If Do_Not_Break_Stream enabled send avoid channel list
 		 * to application.
